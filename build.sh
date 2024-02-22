@@ -1,27 +1,39 @@
 #/bin/bash
 set -Eeuo pipefail
 
-mod_folder=/cygdrive/c/Users/Windree/AppData/Roaming/Vortex/downloads/skyrimse/
+root=$(dirname "${BASH_SOURCE[0]}")
+mod_folder="/cygdrive/c/Users/Windree/AppData/Roaming/Vortex/downloads/skyrimse/"
 mod_file="Notification Filter*.zip"
-mod_config=Data/SKSE/Plugins/NotificationFilter.ini
+mod_config="Data/SKSE/Plugins/NotificationFilter.ini"
+output_folder="$root/configs"
+ini_delimiter=";========================"
 
 function main() {
-    local root=$(dirname "${BASH_SOURCE[0]}")
+
     local base_config=$(get_base_config)
-    echo $base_config
     for file in $(get_ini_files); do
-        echo "$file"
-        cat "$file" | get_ini_description
+        local name=$(cat "$file" | parse_ini_description)
+        local config_file=$(basename "$file")
+        local outout_file="$output_folder/$config_file"
+        rm -rfv "$output_folder/*"
+        (
+            echo
+            echo
+            echo "$base_config"
+            echo "$ini_delimiter"
+            cat "$file"
+            echo "$ini_delimiter"
+        ) >"$outout_file"
     done
     exit
 }
 
 function get_ini_files() {
-    find "$root" -maxdepth 1 -type f -name *.ini
+    find "$root" -maxdepth 1 -type f -name '*.ini'
 }
 
-function get_ini_description() {
-    head -n 1 | grep -oP '(?<=^;).+'
+function parse_ini_description() {
+    head -n 1 | grep -oP '(?<=^;).+' | awk '{$1=$1};1'
 }
 
 function get_base_config() {
