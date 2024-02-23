@@ -2,41 +2,70 @@
 set -Eeuo pipefail
 
 root=$(dirname "${BASH_SOURCE[0]}")
+
 mod_folder="/cygdrive/c/Users/Windree/AppData/Roaming/Vortex/downloads/skyrimse/"
 mod_file="Notification Filter*.zip"
-mod_config="Data/SKSE/Plugins/NotificationFilter.ini"
+mod_ini=NotificationFilter.ini
+mod_folder=Data/SKSE/Plugins
+mod_config="$mod_folder/$mod_ini"
+
+config_folder="$root/configs"
 output_folder="$root/configs"
-output_file_mask="*.ini"
+
 ini_delimiter=";========================"
 temporary_folder="$(mktemp -d)"
-max=5
-clear
 
 function main() {
     local base_config=$(get_base_config)
-    echo "Cleaning up.."
-
-    find "$output_folder" -maxdepth 1 -type f -name "$output_file_mask" -delete
-
-    local ini_files="$(get_ini_files | sort)"
+    local config_files="$(get_ini_files "$config_folder" | sort)"
+    local config_count=$(echo "$config_files" | wc -l)
     echo "Config files:"
-    echo "$ini_files"
+    echo "$config_files"
     echo
-    local count=$(echo "$ini_files" | wc -l)
-    for length in $(seq 1 $count); do
-        sequence_generator "" $length $count | while IFS= read -r row; do
-            for index in $(echo "$row" | sed -e "s/ /\n/g"); do
-                local file=$(echo "$ini_files" | slice $index 1)
-                local title=$(cat "$file" | parse_ini_description "$file")
-                echo "$title: $file"
-            done
+    for length in $(seq 1 $config_count); do
+        sequence_generator "" $length $config_count | while IFS= read -r row; do
+            local target_folder="$temporary_folder/$(echo "$row" | sed 's/ /-/g')/$mod_folder"
+            local target_ini="$target_folder/$mod_ini"
+            local indexes=$(echo "$row" | sed -e "s/ /\n/g")
+            local configs=$(
+                for index in $indexes; do
+                    echo "$config_files" | slice $index 1
+                done
+            )
+            local titles=$(
+                for file in $configs; do
+                    cat "$file" | parse_ini_description "$file"
+                done
+            )
+            local title=$(echo "$titles" | concat " + ")
+            echo "Combine folowing fieles into '$target_ini' Title: $title"
+            mkdir -p "$target_folder"
+            echo "$base_config" >"$target_ini"
+            echo >>"$target_ini"
+            echo "$configs"
+
+            # for index in $(); do
+            #     local file=$()
+            #     local title=$()
+            #     titles=$(
+            #         (
+            #             echo "$title"
+            #             echo
+            #         ) | concat " + "
+            #     )
+            #     echo "$title: $file"
+            #     cat "$file" >>"$target_ini"
+            #     echo >>"$target_ini"
+            # done
+            echo
             echo
         done
     done
+    # find "$temporary_folder/"
 }
 
 function get_ini_files() {
-    find "$root" -maxdepth 1 -type f -name '*.ini'
+    find "$1" -type f
 }
 
 function parse_ini_description() {
@@ -56,6 +85,19 @@ function get_base_config() {
         exit 1
     fi
     echo "$content"
+}
+
+function concat() {
+    local concatinator=$1
+    local pipe=$(cat)
+    local count=$(echo "$pipe" | wc -l)
+    for index in $(seq 1 $count); do
+        local item=$(echo "$pipe" | slice $index 1)
+        echo -n "$item"
+        if ((index < count)); then
+            echo -n "$concatinator"
+        fi
+    done
 }
 
 function sequence_generator() {
@@ -93,7 +135,7 @@ function slice() {
 }
 
 function cleanup() {
-    echo "Cleaning up temporary folders/files ($(rm -rfv "$temporary_folder"))"
+    echo "Cleaning up temporary folders/files ($(rm -rfv "$temporary_folder" | wc -l))"
 }
 
 trap cleanup exit
