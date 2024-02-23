@@ -19,13 +19,20 @@ function main() {
     find "$output_folder" -maxdepth 1 -type f -name "$output_file_mask" -delete
 
     local ini_files="$(get_ini_files | sort)"
-
-    echo -n "$ini_files" | xargs -I% basename "%"
+    echo "Config files:"
+    echo "$ini_files"
+    echo
     local count=$(echo "$ini_files" | wc -l)
     for length in $(seq 1 $count); do
-        sequence_generator "" $length $count
+        sequence_generator "" $length $count | while IFS= read -r row; do
+            for index in $(echo "$row" | sed -e "s/ /\n/g"); do
+                local file=$(echo "$ini_files" | slice $index 1)
+                local title=$(cat "$file" | parse_ini_description "$file")
+                echo "$title: $file"
+            done
+            echo
+        done
     done
-
 }
 
 function get_ini_files() {
