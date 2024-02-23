@@ -1,7 +1,10 @@
-#/bin/bash
+#!/bin/bash
+
 set -Eeuo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/fomod/ModuleConfig.sh"
 
 root=$(dirname "${BASH_SOURCE[0]}")
+temporary_folder="$(mktemp -d)"
 
 mod_folder="/cygdrive/c/Users/Windree/AppData/Roaming/Vortex/downloads/skyrimse/"
 mod_file="Notification Filter*.zip"
@@ -11,21 +14,21 @@ mod_config="$mod_folder/$mod_ini"
 
 config_folder="$root/configs"
 output_folder="$root/configs"
-
-ini_delimiter=";========================"
-temporary_folder="$(mktemp -d)"
+fomod_folder="$temporary_folder/fomod"
+fomod_recomended="Recommended"
+fomod_optional="Optional"
 
 function main() {
     local base_config=$(get_base_config)
     local config_files="$(get_ini_files "$config_folder" | sort)"
     local config_count=$(echo "$config_files" | wc -l)
+    local fomod_plugins=()
     echo "Config files:"
     echo "$config_files"
     echo
     for length in $(seq 1 $config_count); do
-        sequence_generator "" $length $config_count | while IFS= read -r row; do
-            local target_folder="$temporary_folder/$(echo "$row" | sed 's/ /-/g')/$mod_folder"
-            local target_ini="$target_folder/$mod_ini"
+        while IFS= read -r row; do
+            local plugin=
             local indexes=$(echo "$row" | sed -e "s/ /\n/g")
             local configs=$(
                 for index in $indexes; do
@@ -38,30 +41,36 @@ function main() {
                 done
             )
             local title=$(echo "$titles" | concat " + ")
-            echo "Combine folowing fieles into '$target_ini' Title: $title"
-            mkdir -p "$target_folder"
-            echo "$base_config" >"$target_ini"
-            echo >>"$target_ini"
-            echo "$configs"
+            local name=$(echo "$configs" | parse_config_file_id | concat "-")
+            local folder="$temporary_folder/$name/$mod_folder"
+            local ini="$folder/$mod_ini"
+            echo "Combine folowing fieles into '$ini'    Title: $title"
+            mkdir -p "$folder"
+            echo "$base_config" >"$ini"
+            echo >>"$ini"
+            for file in $configs; do
+                echo "File: $file"
+                cat "$file" >>"$ini"
+                echo >>"$ini"
+            done
+            echo
+            echo
 
-            # for index in $(); do
-            #     local file=$()
-            #     local title=$()
-            #     titles=$(
-            #         (
-            #             echo "$title"
-            #             echo
-            #         ) | concat " + "
-            #     )
-            #     echo "$title: $file"
-            #     cat "$file" >>"$target_ini"
-            #     echo >>"$target_ini"
-            # done
-            echo
-            echo
-        done
+            plugin="${MODULE_PLUGIN//%NAME%/$name}"
+            plugin="${plugin//%TITLE%/$title}"
+            plugin="${plugin//%TYPE%/$fomod_optional}"
+            fomod_plugins+=("$plugin"$'\n')
+        done < <(sequence_generator "" $length $config_count)
     done
-    # find "$temporary_folder/"
+
+    echo "Creating fomod config"
+    mkdir -p "$fomod_folder"
+    local fomod_info_file="$fomod_folder/info.xml"
+    local fomod_module_file="$fomod_folder/ModuleConfig.xml"
+    echo "${MODULE_CONFIG//%PLUGINS%/${fomod_plugins[@]}}" >"$fomod_folder/ModuleConfig.xml"
+    cat "$root/fomod/info.xml" >>"$fomod_folder/info.xml"
+
+    rsync -av "$temporary_folder/" "$root/tmp"
 }
 
 function get_ini_files() {
@@ -85,6 +94,12 @@ function get_base_config() {
         exit 1
     fi
     echo "$content"
+}
+
+function parse_config_file_id() {
+    while IFS= read -r line; do
+        basename "$line" | grep -oP '^\d+'
+    done
 }
 
 function concat() {
@@ -139,5 +154,15 @@ function cleanup() {
 }
 
 trap cleanup exit
+
+function f() {
+    set -x
+    local ids=()
+    for id in $(seq 1 5); do
+        ids+=($id)
+    done
+    echo "${ids[@]}"
+}
+
 clear
 main
