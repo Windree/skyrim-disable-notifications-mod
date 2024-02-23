@@ -8,7 +8,7 @@ mod_config="Data/SKSE/Plugins/NotificationFilter.ini"
 output_folder="$root/configs"
 output_file_mask="*.ini"
 ini_delimiter=";========================"
-log_file="$(mktemp)"
+temporary_folder="$(mktemp -d)"
 max=5
 clear
 
@@ -22,7 +22,7 @@ function main() {
 
     echo -n "$ini_files" | xargs -I% basename "%"
     local count=$(echo "$ini_files" | wc -l)
-    for length in $(seq $count -1 1); do
+    for length in $(seq 1 $count); do
         sequence_generator "" $length $count
     done
 
@@ -57,13 +57,11 @@ function sequence_generator() {
     local count=$3
     local previous=$(echo "$prefix" | grep -oP '[\d]+$')
     declare -i number=0
-    echo >&2 "(($number <= $count))"
     while ((number < count)); do
         ((number = number + 1))
         if [ -n "$previous" ] && ((number <= previous)); then
             continue
         fi
-        echo >&2 "number $number"
         local string=
         if [ -n "$prefix" ]; then
             string="$prefix $number"
@@ -71,7 +69,7 @@ function sequence_generator() {
             string=$number
         fi
         if ((remaining > 1)); then
-            append_number "$string" $((remaining - 1)) $count
+            sequence_generator "$string" $((remaining - 1)) $count
         else
             echo "$string"
         fi
@@ -88,13 +86,9 @@ function slice() {
 }
 
 function cleanup() {
-    echo >&2 '--EXIT--'
-    echo '__LOG__' >&2
-    cat "$log_file" 1>&2
-    rm -f "$log_file"
+    echo "Cleaning up temporary folders/files ($(rm -rfv "$temporary_folder"))"
 }
-clear
 
 trap cleanup exit
-
-main 2>"$root/debug.txt"
+clear
+main
