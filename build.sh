@@ -13,9 +13,11 @@ mod_folder=Data/SKSE/Plugins
 
 config_folder="$root/configs"
 output_folder="$root/configs"
-fomod_folder="$temporary_folder/fomod"
+
 fomod_recomended="Recommended"
 fomod_optional="Optional"
+
+extra_configs=("$root/configs/Everything.ini")
 
 target_file="$root/target/Disable-Notification-Messages.7z"
 
@@ -35,74 +37,145 @@ function main() {
     done
 
     local base_config=$(get_base_config "$mods_folder" "$mod_file" "$mod_folder/$mod_ini")
-    local config_files="$(find_files "$config_folder" | sort)"
+    local config_files="$(find_prefixed_files "$config_folder" | sort)"
     local config_count=$(echo "$config_files" | wc -l)
-    local fomod_plugins=()
+    local plugins=()
     echo "Config files:"
     echo "$config_files"
     echo
+
+    echo "Creating extra configurations:"
+    for file in "${extra_configs[@]}"; do
+        echo "File: $file"
+        local plugin=$(create_config "$temporary_folder" "$file")
+        plugins+=("$plugin")
+        echo "An extra plugin saved to '$plugin'"
+    done
+
+    echo "Creating mixed configurations:"
     for length in $(seq 1 $config_count); do
         while IFS= read -r row; do
-            local plugin=
-            local indexes=$(echo "$row" | sed -e "s/ /\n/g")
-            local configs=$(
-                for index in $indexes; do
-                    echo "$config_files" | slice $index 1
-                done
-            )
-            local titles=$(
-                for file in $configs; do
-                    cat "$file" | parse_ini_description "$file"
-                done
-            )
-            local sections=$(
-                for file in $configs; do
-                    cat "$file" | parse_ini_sections "$file"
-                done
-            )
-            local title=$(echo "$titles" | concat " + ")
-            local name=$(echo "$configs" | parse_number_file_prefix | concat "-")
-            local description=$(echo "$sections" | concat $'\n')
-            local folder="$temporary_folder/$name/"
-            local ini="$folder/$mod_ini"
-            echo "Combine folowing fieles into '$ini'    Title: $title"
-            mkdir -p "$folder"
-            echo "$base_config" >"$ini"
-            echo >>"$ini"
-            for file in $configs; do
+            local indexes=($row)
+            local files=()
+            echo "Combine following files onto a plugin:"
+            for index in "${indexes[@]}"; do
+                local file=$(echo "$config_files" | slice $index 1)
                 echo "File: $file"
-                cat "$file" >>"$ini"
-                echo >>"$ini"
+                files+=("$file")
             done
-            echo
-            echo
-
-            plugin="${MODULE_PLUGIN//%NAME%/$name}"
-            plugin="${plugin//%TITLE%/$title}"
-            plugin="${plugin//%TYPE%/$fomod_optional}"
-            plugin="${plugin//%DESCRIPTION%/$description}"
-            fomod_plugins+=("$plugin"$'\n')
+            local plugin=$(create_config "$temporary_folder" "${files[@]}")
+            plugins+=("$plugin")
+            echo "A plugin saved to '$plugin'"
         done < <(sequence_generator "" $length $config_count)
     done
 
-    echo "Creating fomod config"
-    mkdir -p "$fomod_folder"
-    local fomod_info_file="$fomod_folder/info.xml"
-    local fomod_module_file="$fomod_folder/ModuleConfig.xml"
-    cat "$root/fomod/info.xml" >>"$fomod_info_file"
-    echo "${MODULE_CONFIG//%PLUGINS%/${fomod_plugins[@]}}" >"$fomod_module_file"
-    echo "Pack files into plugin"
-    local target_folder=$(dirname "$target_file")
-    rm -rf "$target_folder"
-    mkdir -p "$target_folder"
-    7z a "$target_file" "$temporary_folder/*"
+    echo "Creating fomod config.."
+    local fomod=$(create_fomod_config "$temporary_folder" "${plugins[@]}")
+    echo "Fomod config saved to $fomod"
+
+    echo "Pack files into plugin.."
+    pack_mod "$temporary_folder" "$root/target/Disable-Notification-Messages.7z"
+
     if $debug; then
         rsync -av --delete "$temporary_folder/" "$root/tmp"
     fi
 }
 
-function find_files() {
-    find "$1" -type f -name "*.ini"
+function create_config() {
+    local root=$1
+    shift
+
+    local configs=$(
+        for file in $@; do
+            echo "$file"
+        done
+    )
+
+    local ids=$(
+        for file in $@; do
+            cat "$file" | parse_ini_id
+        done
+    )
+
+    local titles=$(
+        for file in $@; do
+            cat "$file" | parse_ini_description
+        done
+    )
+
+    local sections=$(
+        for file in $@; do
+            cat "$file" | parse_ini_sections
+        done
+    )
+
+    local name=$(echo "$ids" | concat "-")
+    if [ -z "$name" ]; then
+        echo >&2 "Unable to get id from '$@'"
+    fi
+    local title=$(echo "$titles" | concat " + ")
+    if [ -z "$title" ]; then
+        echo >&2 "Unable to get title from '$@'"
+    fi
+    local description=$(echo "$sections" | concat $'\n')
+
+    local folder="$root/$name"
+    local ini="$folder/$mod_ini"
+    local xml="$folder/plugin.xml"
+    if ! mkdir "$folder"; then
+        echo >&2 "Unable to create '$folder'"
+    fi
+    echo "$base_config" >"$ini"
+    echo >>"$ini"
+    for file in $@; do
+        cat "$file" >>"$ini"
+        echo >>"$ini"
+    done
+    plugin="${MODULE_PLUGIN//%NAME%/$name}"
+    plugin="${plugin//%TITLE%/$title}"
+    plugin="${plugin//%TYPE%/$fomod_optional}"
+    plugin="${plugin//%DESCRIPTION%/$description}"
+    echo "$plugin" >"$xml"
+    echo $xml
+}
+
+function create_fomod_config() {
+    local root=$1
+    shift
+    local folder="$root/fomod"
+    if ! mkdir -p "$folder"; then
+        echo >&2 "unable to create Fomod folder 'folder'"
+        exit 1
+    fi
+
+    local info_file="$folder/info.xml"
+    local module_file="$folder/ModuleConfig.xml"
+
+    local plugins=$(
+        for file in $@; do
+            cat "$file"
+            echo
+        done
+    )
+    cat "$root/fomod/info.xml" >>"$info_file"
+    echo "${MODULE_CONFIG//%PLUGINS%/$plugins}" >"$module_file"
+    echo "$folder"
+}
+
+function pack_mod() {
+    local source=$1
+    local archive=$2
+    7z a "$archive" "$source/*"
+}
+
+function find_prefixed_files() {
+    local prefix=
+    find "$1" -type f | (
+        while IFS= read -r file; do
+            prefix="$(basename "$file" | grep -oP '^\d+')"
+            [ -n "$prefix" ] && echo "$file"
+        done
+    )
 }
 
 # print config from base mod file
@@ -120,10 +193,8 @@ function get_base_config() {
     echo "$content"
 }
 
-function parse_number_file_prefix() {
-    while IFS= read -r line; do
-        basename "$line" | grep -oP '^\d+'
-    done
+function parse_ini_id() {
+    grep -oP '(?<=^; %).+' | awk '{$1=$1};1'
 }
 
 function parse_ini_description() {

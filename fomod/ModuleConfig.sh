@@ -28,7 +28,7 @@ Hide following notifications:
 %DESCRIPTION%
 ]]></description>
     <files>
-        <file source="%NAME%\NotificationFilter.ini" destination="SKSE\Plugins\NotificationFilter.ini" priority="0" /> 
+        <file source="%NAME%\NotificationFilter.ini" destination="SKSE\Plugins\NotificationFilter.ini" priority="1" /> 
     </files>
     <typeDescriptor>
         <type name="%TYPE%" />
