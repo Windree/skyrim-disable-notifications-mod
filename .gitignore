@@ -1,3 +1,2 @@
-debug.txt
-log.txt
-/tmp
+/tmp/*
+/target/*

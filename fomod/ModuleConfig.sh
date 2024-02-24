@@ -10,7 +10,7 @@ MODULE_CONFIG=$(
 			<optionalFileGroups order="Explicit">
 				<group name="Choose notification messages to disable" type="SelectExactlyOne">
 					<plugins order="Explicit">
-						%PLUGINS%
+%PLUGINS%
 					</plugins>
 				</group>
 			</optionalFileGroups>
@@ -22,10 +22,10 @@ CONFIG
 
 MODULE_PLUGIN=$(
 	cat <<'PLUGIN'
-<plugin name="%NAME%">
-    <description>%TITLE%</description>
+<plugin name="%TITLE%">
+    <description><![CDATA[Hide following notifications: %TITLE%]]></description>
     <files>
-        <folder source="%NAME%\SKSE" destination="SKSE" priority="0" />
+        <file source="%NAME%\NotificationFilter.ini" destination="SKSE\Plugins\NotificationFilter.ini" priority="0" /> 
     </files>
     <typeDescriptor>
         <type name="%TYPE%" />

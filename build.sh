@@ -6,11 +6,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/fomod/ModuleConfig.sh"
 root=$(dirname "${BASH_SOURCE[0]}")
 temporary_folder="$(mktemp -d)"
 
-mod_folder="/cygdrive/c/Users/Windree/AppData/Roaming/Vortex/downloads/skyrimse/"
+mods_folder="/cygdrive/c/Users/Windree/AppData/Roaming/Vortex/downloads/skyrimse/"
 mod_file="Notification Filter*.zip"
 mod_ini=NotificationFilter.ini
 mod_folder=Data/SKSE/Plugins
-mod_config="$mod_folder/$mod_ini"
 
 config_folder="$root/configs"
 output_folder="$root/configs"
@@ -18,8 +17,10 @@ fomod_folder="$temporary_folder/fomod"
 fomod_recomended="Recommended"
 fomod_optional="Optional"
 
+target_file="$root/target/Disable-Notification-Messages.7z"
+
 function main() {
-    local base_config=$(get_base_config)
+    local base_config=$(get_base_config "$mods_folder" "$mod_file" "$mod_folder/$mod_ini")
     local config_files="$(get_ini_files "$config_folder" | sort)"
     local config_count=$(echo "$config_files" | wc -l)
     local fomod_plugins=()
@@ -42,7 +43,7 @@ function main() {
             )
             local title=$(echo "$titles" | concat " + ")
             local name=$(echo "$configs" | parse_config_file_id | concat "-")
-            local folder="$temporary_folder/$name/$mod_folder"
+            local folder="$temporary_folder/$name/"
             local ini="$folder/$mod_ini"
             echo "Combine folowing fieles into '$ini'    Title: $title"
             mkdir -p "$folder"
@@ -67,10 +68,15 @@ function main() {
     mkdir -p "$fomod_folder"
     local fomod_info_file="$fomod_folder/info.xml"
     local fomod_module_file="$fomod_folder/ModuleConfig.xml"
-    echo "${MODULE_CONFIG//%PLUGINS%/${fomod_plugins[@]}}" >"$fomod_folder/ModuleConfig.xml"
-    cat "$root/fomod/info.xml" >>"$fomod_folder/info.xml"
-
-    rsync -av "$temporary_folder/" "$root/tmp"
+    set -x
+    cat "$root/fomod/info.xml" >>"$fomod_info_file"
+    echo "${MODULE_CONFIG//%PLUGINS%/${fomod_plugins[@]}}" >"$fomod_module_file"
+    rsync -av --delete "$temporary_folder/" "$root/tmp"
+    echo "Pack files into plugin"
+    local target_folder=$(dirname "$target_file")
+    rm -rf "$target_folder"
+    mkdir -p "$target_folder"
+    7z a "$target_file" "$temporary_folder/*"
 }
 
 function get_ini_files() {
@@ -83,12 +89,12 @@ function parse_ini_description() {
 
 # print config from base mod file
 function get_base_config() {
-    local mod_zip=$(find "$mod_folder" -maxdepth 1 -type f -name "$mod_file" | tail -n 1)
+    local mod_zip=$(find "$1" -maxdepth 1 -type f -name "$2" | tail -n 1)
     if [ ! -f "$mod_zip" ]; then
         echo >&2 "No mod archive found"
         exit 1
     fi
-    local content=$(7za e -so "$mod_zip" "$mod_config")
+    local content=$(7za e -so "$mod_zip" "$3")
     if [ -z "$content" ]; then
         echo >&2 "No mod config"
         exit 1
