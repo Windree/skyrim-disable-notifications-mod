@@ -111,11 +111,11 @@ function parse_number_file_prefix() {
 }
 
 function parse_ini_description() {
-    head -n 1 | grep -oP '(?<=^;).+' | awk '{$1=$1};1'
+    head -n 1 | grep -oP '(?<=^; #).+' | awk '{$1=$1};1'
 }
 
 function parse_ini_sections() {
-    tail -n +2 | grep -oP '(?<=^;).+' | awk '{$1=$1};1'
+    tail -n +2 | grep -oP '(?<=^; #).+' | awk '{$1=$1};1'
 }
 
 function concat() {
