@@ -14,7 +14,7 @@ mod_folder=Data/SKSE/Plugins
 config_folder="$root/configs"
 output_folder="$root/configs"
 
-fomod_recomended="Recommended"
+fomod_recommended="Recommended"
 fomod_optional="Optional"
 
 extra_configs=("$root/configs/Everything.ini")
@@ -70,7 +70,7 @@ function main() {
     done
 
     echo "Creating fomod config.."
-    local fomod=$(create_fomod_config "$temporary_folder" "${plugins[@]}")
+    local fomod=$(create_fomod_config "$root" "$temporary_folder" "${plugins[@]}")
     echo "Fomod config saved to $fomod"
 
     echo "Pack files into plugin.."
@@ -109,15 +109,15 @@ function create_config() {
         done
     )
 
-    local name=$(echo "$ids" | concat "-")
+    local name=$(echo "$ids" | concatenate "-")
     if [ -z "$name" ]; then
         echo >&2 "Unable to get id from '$@'"
     fi
-    local title=$(echo "$titles" | concat " + ")
+    local title=$(echo "$titles" | concatenate " + ")
     if [ -z "$title" ]; then
         echo >&2 "Unable to get title from '$@'"
     fi
-    local description=$(echo "$sections" | concat $'\n')
+    local description=$(echo "$sections" | concatenate $'\n')
 
     local folder="$root/$name"
     local ini="$folder/$mod_ini"
@@ -140,11 +140,13 @@ function create_config() {
 }
 
 function create_fomod_config() {
-    local root=$1
+    local source=$1
     shift
-    local folder="$root/fomod"
+    local target=$1
+    shift
+    local folder="$target/fomod"
     if ! mkdir -p "$folder"; then
-        echo >&2 "unable to create Fomod folder 'folder'"
+        echo >&2 "unable to create fomod folder 'folder'"
         exit 1
     fi
 
@@ -157,7 +159,7 @@ function create_fomod_config() {
             echo
         done
     )
-    cat "$root/fomod/info.xml" >>"$info_file"
+    cp "$source/fomod/info.xml" "$info_file"
     echo "${MODULE_CONFIG//%PLUGINS%/$plugins}" >"$module_file"
     echo "$folder"
 }
@@ -205,15 +207,15 @@ function parse_ini_sections() {
     tail -n +2 | grep -oP '(?<=^; #).+' | awk '{$1=$1};1'
 }
 
-function concat() {
-    local concatinator=$1
+function concatenate() {
+    local separator=$1
     local pipe=$(cat)
     local count=$(echo "$pipe" | wc -l)
     for index in $(seq 1 $count); do
         local item=$(echo "$pipe" | slice $index 1)
         echo -n "$item"
         if ((index < count)); then
-            echo -n "$concatinator"
+            echo -n "$separator"
         fi
     done
 }
