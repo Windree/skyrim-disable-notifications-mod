@@ -20,6 +20,20 @@ fomod_optional="Optional"
 target_file="$root/target/Disable-Notification-Messages.7z"
 
 function main() {
+    local debug=false
+    while [ $# -gt 0 ]; do
+        case $1 in
+        "debug")
+            debug=true
+            ;;
+        *)
+            echo >&2 "Unknown parameter $1"
+            exit
+            ;;
+        esac
+        shift
+    done
+
     local base_config=$(get_base_config "$mods_folder" "$mod_file" "$mod_folder/$mod_ini")
     local config_files="$(find_files "$config_folder" | sort)"
     local config_count=$(echo "$config_files" | wc -l)
@@ -77,12 +91,14 @@ function main() {
     local fomod_module_file="$fomod_folder/ModuleConfig.xml"
     cat "$root/fomod/info.xml" >>"$fomod_info_file"
     echo "${MODULE_CONFIG//%PLUGINS%/${fomod_plugins[@]}}" >"$fomod_module_file"
-    rsync -av --delete "$temporary_folder/" "$root/tmp"
     echo "Pack files into plugin"
     local target_folder=$(dirname "$target_file")
     rm -rf "$target_folder"
     mkdir -p "$target_folder"
     7z a "$target_file" "$temporary_folder/*"
+    if $debug; then
+        rsync -av --delete "$temporary_folder/" "$root/tmp"
+    fi
 }
 
 function find_files() {
@@ -171,4 +187,4 @@ function cleanup() {
 
 trap cleanup exit
 
-main
+main "$@"
