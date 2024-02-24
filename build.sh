@@ -21,7 +21,7 @@ target_file="$root/target/Disable-Notification-Messages.7z"
 
 function main() {
     local base_config=$(get_base_config "$mods_folder" "$mod_file" "$mod_folder/$mod_ini")
-    local config_files="$(get_ini_files "$config_folder" | sort)"
+    local config_files="$(find_files "$config_folder" | sort)"
     local config_count=$(echo "$config_files" | wc -l)
     local fomod_plugins=()
     echo "Config files:"
@@ -79,7 +79,7 @@ function main() {
     7z a "$target_file" "$temporary_folder/*"
 }
 
-function get_ini_files() {
+function find_files() {
     find "$1" -type f
 }
 
