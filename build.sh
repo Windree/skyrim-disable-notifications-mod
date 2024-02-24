@@ -98,7 +98,7 @@ function get_base_config() {
     fi
     local content=$(7za e -so "$mod_zip" "$3")
     if [ -z "$content" ]; then
-        echo >&2 "No mod config"
+        echo >&2 "No mod config file '$3' found in archive"
         exit 1
     fi
     echo "$content"
@@ -171,14 +171,4 @@ function cleanup() {
 
 trap cleanup exit
 
-function f() {
-    set -x
-    local ids=()
-    for id in $(seq 1 5); do
-        ids+=($id)
-    done
-    echo "${ids[@]}"
-}
-
-clear
 main
