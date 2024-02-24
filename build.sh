@@ -41,8 +41,14 @@ function main() {
                     cat "$file" | parse_ini_description "$file"
                 done
             )
+            local sections=$(
+                for file in $configs; do
+                    cat "$file" | parse_ini_sections "$file"
+                done
+            )
             local title=$(echo "$titles" | concat " + ")
-            local name=$(echo "$configs" | parse_config_file_id | concat "-")
+            local name=$(echo "$configs" | parse_number_file_prefix | concat "-")
+            local description=$(echo "$sections" | concat $'\n')
             local folder="$temporary_folder/$name/"
             local ini="$folder/$mod_ini"
             echo "Combine folowing fieles into '$ini'    Title: $title"
@@ -60,6 +66,7 @@ function main() {
             plugin="${MODULE_PLUGIN//%NAME%/$name}"
             plugin="${plugin//%TITLE%/$title}"
             plugin="${plugin//%TYPE%/$fomod_optional}"
+            plugin="${plugin//%DESCRIPTION%/$description}"
             fomod_plugins+=("$plugin"$'\n')
         done < <(sequence_generator "" $length $config_count)
     done
@@ -68,7 +75,6 @@ function main() {
     mkdir -p "$fomod_folder"
     local fomod_info_file="$fomod_folder/info.xml"
     local fomod_module_file="$fomod_folder/ModuleConfig.xml"
-    set -x
     cat "$root/fomod/info.xml" >>"$fomod_info_file"
     echo "${MODULE_CONFIG//%PLUGINS%/${fomod_plugins[@]}}" >"$fomod_module_file"
     rsync -av --delete "$temporary_folder/" "$root/tmp"
@@ -80,11 +86,7 @@ function main() {
 }
 
 function find_files() {
-    find "$1" -type f
-}
-
-function parse_ini_description() {
-    head -n 1 | grep -oP '(?<=^;).+' | awk '{$1=$1};1'
+    find "$1" -type f -name "*.ini"
 }
 
 # print config from base mod file
@@ -102,10 +104,18 @@ function get_base_config() {
     echo "$content"
 }
 
-function parse_config_file_id() {
+function parse_number_file_prefix() {
     while IFS= read -r line; do
         basename "$line" | grep -oP '^\d+'
     done
+}
+
+function parse_ini_description() {
+    head -n 1 | grep -oP '(?<=^;).+' | awk '{$1=$1};1'
+}
+
+function parse_ini_sections() {
+    tail -n +2 | grep -oP '(?<=^;).+' | awk '{$1=$1};1'
 }
 
 function concat() {

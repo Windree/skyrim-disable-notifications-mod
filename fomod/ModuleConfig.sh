@@ -23,7 +23,10 @@ CONFIG
 MODULE_PLUGIN=$(
 	cat <<'PLUGIN'
 <plugin name="%TITLE%">
-    <description><![CDATA[Hide following notifications: %TITLE%]]></description>
+    <description><![CDATA[
+Hide following notifications:
+%DESCRIPTION%
+]]></description>
     <files>
         <file source="%NAME%\NotificationFilter.ini" destination="SKSE\Plugins\NotificationFilter.ini" priority="0" /> 
     </files>
