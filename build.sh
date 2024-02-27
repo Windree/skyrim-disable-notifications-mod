@@ -84,7 +84,7 @@ function main() {
     echo "Creating bbcode.."
     create_bbcode "${all_files[@]}" >"$root/target/description.bbcode"
     echo "Pack files into plugin.."
-    pack_mod "$temp" "$root/target/Disable-Notification-Messages.7z"
+    pack_mod "$temp" "$target_file"
 
     if $debug; then
         rsync -av --delete "$temp/" "$root/tmp"
