@@ -19,7 +19,7 @@ fomod_optional="Optional"
 
 extra_configs=("$root/configs/Everything.ini")
 
-target_file="$root/target/Disable-Notification-Messages.7z"
+target_file="$root/target/Disable-Notifications.7z"
 
 function main() {
     local debug=false
