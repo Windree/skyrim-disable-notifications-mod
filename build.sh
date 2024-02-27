@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -Eeuo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/fomod/info.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/fomod/ModuleConfig.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/nexus/mod.sh"
 
@@ -19,6 +20,7 @@ fomod_optional="Optional"
 
 extra_configs=("$root/configs/Everything.ini")
 
+version="1.0.1"
 target_file="$root/target/Disable-Notifications.7z"
 
 function main() {
@@ -191,7 +193,8 @@ function create_fomod_config() {
             echo
         done
     )
-    cp "$source/fomod/info.xml" "$info_file"
+
+    echo "${INFO//%VERSION%/$version}" >"$info_file"
     echo "${MODULE_CONFIG//%PLUGINS%/$plugins}" >"$module_file"
     echo "$folder"
 }
@@ -297,7 +300,4 @@ function cleanup() {
 
 trap cleanup exit
 
-# declare -a items=([0]="[*]Cold weather" [1]="[*]Warm weather" [2]="[*]Comfortable weather" [3]="[*]Cold effects" [4]="[*]Warm effects" [5]="[*]Tired" [6]="[*]Rest" [7]="[*]Hunger" [8]="[*]Eating")
-# concatenate $'\n' "${items[@]}"
-# exit
 main "$@"
