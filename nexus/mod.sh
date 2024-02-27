@@ -15,6 +15,8 @@ The mod disables notifications messages in top left corner of screen for more im
 
 [i]Replace %INI% during installation via mod manager.[/i]
 
+[url=https://github.com/Windree/skyrim-disable-notifications-mod]Github project[/url] 
+
 DESCRIPTION
 )
 

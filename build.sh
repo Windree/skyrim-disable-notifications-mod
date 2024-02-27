@@ -84,6 +84,7 @@ function main() {
     echo "Creating bbcode.."
     create_bbcode "${all_files[@]}" >"$root/target/description.bbcode"
     echo "Pack files into plugin.."
+    rm -rf "$target_file"
     pack_mod "$temp" "$target_file"
 
     if $debug; then
