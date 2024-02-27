@@ -2,9 +2,10 @@
 
 set -Eeuo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/fomod/ModuleConfig.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/nexus/mod.sh"
 
 root=$(dirname "${BASH_SOURCE[0]}")
-temporary_folder="$(mktemp -d)"
+temp="$(mktemp -d)"
 
 mods_folder="/cygdrive/c/Users/Windree/AppData/Roaming/Vortex/downloads/skyrimse/"
 mod_file="Notification Filter*.zip"
@@ -12,7 +13,6 @@ mod_ini=NotificationFilter.ini
 mod_folder=Data/SKSE/Plugins
 
 config_folder="$root/configs"
-output_folder="$root/configs"
 
 fomod_recommended="Recommended"
 fomod_optional="Optional"
@@ -37,47 +37,55 @@ function main() {
     done
 
     local base_config=$(get_base_config "$mods_folder" "$mod_file" "$mod_folder/$mod_ini")
-    local config_files="$(find_prefixed_files "$config_folder" | sort)"
-    local config_count=$(echo "$config_files" | wc -l)
+    readarray -t configs < <(find_prefixed_files "$config_folder" | sort)
+    local configs_count=${#configs[@]}
     local plugins=()
-    echo "Config files:"
-    echo "$config_files"
+    echo "Config files($configs_count):"
+    echo "${configs[@]}"
     echo
 
     echo "Creating extra configurations:"
     for file in "${extra_configs[@]}"; do
         echo "File: $file"
-        local plugin=$(create_config "$temporary_folder" "$file")
+        local plugin=$(create_config "$temp" "$file")
         plugins+=("$plugin")
         echo "An extra plugin saved to '$plugin'"
     done
 
     echo "Creating mixed configurations:"
-    for length in $(seq 1 $config_count); do
+    for length in $(seq 1 $configs_count); do
         while IFS= read -r row; do
             local indexes=($row)
             local files=()
             echo "Combine following files onto a plugin:"
             for index in "${indexes[@]}"; do
-                local file=$(echo "$config_files" | slice $index 1)
+                echo "index: $index"
+                local file=${configs[((index - 1))]}
                 echo "File: $file"
                 files+=("$file")
             done
-            local plugin=$(create_config "$temporary_folder" "${files[@]}")
+            local plugin=$(create_config "$temp" "${files[@]}")
             plugins+=("$plugin")
             echo "A plugin saved to '$plugin'"
-        done < <(sequence_generator "" $length $config_count)
+        done < <(sequence_generator "" $length $configs_count)
     done
 
     echo "Creating fomod config.."
-    local fomod=$(create_fomod_config "$root" "$temporary_folder" "${plugins[@]}")
+    local fomod=$(create_fomod_config "$root" "$temp" "${plugins[@]}")
     echo "Fomod config saved to $fomod"
+    for plugin in "${plugins[@]}"; do
+        rm -f "$plugin"
+    done
 
+    local all_files=("${extra_configs[@]}" "${configs[@]}")
+
+    echo "Creating bbcode.."
+    create_bbcode "${all_files[@]}" >"$root/target/description.bbcode"
     echo "Pack files into plugin.."
-    pack_mod "$temporary_folder" "$root/target/Disable-Notification-Messages.7z"
+    pack_mod "$temp" "$root/target/Disable-Notification-Messages.7z"
 
     if $debug; then
-        rsync -av --delete "$temporary_folder/" "$root/tmp"
+        rsync -av --delete "$temp/" "$root/tmp"
     fi
 }
 
@@ -99,7 +107,7 @@ function create_config() {
 
     local titles=$(
         for file in $@; do
-            cat "$file" | parse_ini_description
+            cat "$file" | parse_ini_title
         done
     )
 
@@ -122,6 +130,7 @@ function create_config() {
     local folder="$root/$name"
     local ini="$folder/$mod_ini"
     local xml="$folder/plugin.xml"
+    local bbcode="$folder/plugin.bbcode"
     if ! mkdir "$folder"; then
         echo >&2 "Unable to create '$folder'"
     fi
@@ -131,12 +140,35 @@ function create_config() {
         cat "$file" >>"$ini"
         echo >>"$ini"
     done
-    plugin="${MODULE_PLUGIN//%NAME%/$name}"
+    local plugin=$MODULE_PLUGIN
+    plugin="${plugin//%NAME%/$name}"
     plugin="${plugin//%TITLE%/$title}"
     plugin="${plugin//%TYPE%/$fomod_optional}"
     plugin="${plugin//%DESCRIPTION%/$description}"
     echo "$plugin" >"$xml"
     echo $xml
+}
+
+function create_bbcode() {
+    local profiles=()
+    local new_line=$'\n'
+
+    for file in $@; do
+        local profile=$MOD_PROFILE
+        local title=$(cat "$file" | parse_ini_title)
+        readarray -t sections < <(cat "$file" | parse_ini_sections)
+        local items=()
+        for section in "${sections[@]}"; do
+            items+=("${MOD_SECTION//%SECTION%/$section}")
+        done
+        profile="${profile//%PROFILE%/$title}"
+        profile="${profile//%SECTIONS%/$(concatenate $'\n' "${items[@]}")}"
+        profiles+=("$profile")
+    done
+    local description=$MOD_DESCRIPTION
+    description="${description//%PROFILES%/$(concatenate $'\n' "${profiles[@]}")}"
+    description="${description//%INI%/$mod_ini}"
+    echo "$description"
 }
 
 function create_fomod_config() {
@@ -199,7 +231,7 @@ function parse_ini_id() {
     grep -oP '(?<=^; %).+' | awk '{$1=$1};1'
 }
 
-function parse_ini_description() {
+function parse_ini_title() {
     head -n 1 | grep -oP '(?<=^; #).+' | awk '{$1=$1};1'
 }
 
@@ -209,12 +241,17 @@ function parse_ini_sections() {
 
 function concatenate() {
     local separator=$1
-    local pipe=$(cat)
-    local count=$(echo "$pipe" | wc -l)
-    for index in $(seq 1 $count); do
-        local item=$(echo "$pipe" | slice $index 1)
-        echo -n "$item"
-        if ((index < count)); then
+    shift
+    local array=()
+    if [ ! -t 0 ]; then
+        readarray -t array < <(cat)
+    else
+        array=("$@")
+    fi
+    local length=${#array[@]}
+    for ((i = 0; i < ${length}; i++)); do
+        echo -n "${array[$i]}"
+        if ((i < length - 1)); then
             echo -n "$separator"
         fi
     done
@@ -255,9 +292,12 @@ function slice() {
 }
 
 function cleanup() {
-    echo "Cleaning up temporary folders/files ($(rm -rfv "$temporary_folder" | wc -l))"
+    echo "Cleaning up temporary folders/files ($(rm -rfv "$temp" | wc -l))"
 }
 
 trap cleanup exit
 
+# declare -a items=([0]="[*]Cold weather" [1]="[*]Warm weather" [2]="[*]Comfortable weather" [3]="[*]Cold effects" [4]="[*]Warm effects" [5]="[*]Tired" [6]="[*]Rest" [7]="[*]Hunger" [8]="[*]Eating")
+# concatenate $'\n' "${items[@]}"
+# exit
 main "$@"
