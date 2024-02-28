@@ -13,14 +13,13 @@ mod_file="Notification Filter*.zip"
 mod_ini=NotificationFilter.ini
 mod_folder=Data/SKSE/Plugins
 
-config_folder="$root/configs"
+mix_config_folder="$root/configs/mix"
+custom_config_folder="$root/configs/custom"
 
 fomod_recommended="Recommended"
 fomod_optional="Optional"
 
-extra_configs=("$root/configs/Everything.ini")
-
-version="1.0.1"
+version="1.0.2"
 target_file="$root/target/Disable-Notifications.7z"
 
 function main() {
@@ -39,47 +38,50 @@ function main() {
     done
 
     local base_config=$(get_base_config "$mods_folder" "$mod_file" "$mod_folder/$mod_ini")
-    readarray -t configs < <(find_prefixed_files "$config_folder" | sort)
-    local configs_count=${#configs[@]}
+    readarray -t custom_configs < <(find_prefixed_files "$custom_config_folder" | sort)
+    readarray -t mix_configs < <(find_prefixed_files "$mix_config_folder" | sort)
+    local configs_count=
     local plugins=()
-    echo "Config files($configs_count):"
-    echo "${configs[@]}"
+    echo "Custom config files(${#custom_configs[@]}):"
+    echo "${custom_configs[@]}"
+    echo "Mix config files(${#mix_configs[@]}):"
+    echo "${mix_configs[@]}"
     echo
 
-    echo "Creating extra configurations:"
-    for file in "${extra_configs[@]}"; do
+    echo "Creating custom configurations:"
+    for file in "${custom_configs[@]}"; do
         echo "File: $file"
-        local plugin=$(create_config "$temp" "$file")
-        plugins+=("$plugin")
-        echo "An extra plugin saved to '$plugin'"
+        local folder=$(create_config "$temp" "$file")
+        plugins+=("$folder")
+        echo "An extra plugin saved to '$folder'"
     done
 
     echo "Creating mixed configurations:"
-    for length in $(seq 1 $configs_count); do
+    for length in $(seq 1 ${#mix_configs[@]}); do
         while IFS= read -r row; do
             local indexes=($row)
             local files=()
             echo "Combine following files onto a plugin:"
             for index in "${indexes[@]}"; do
                 echo "index: $index"
-                local file=${configs[((index - 1))]}
+                local file=${mix_configs[((index - 1))]}
                 echo "File: $file"
                 files+=("$file")
             done
-            local plugin=$(create_config "$temp" "${files[@]}")
-            plugins+=("$plugin")
-            echo "A plugin saved to '$plugin'"
-        done < <(sequence_generator "" $length $configs_count)
+            local folder=$(create_config "$temp" "${files[@]}")
+            plugins+=("$folder")
+            echo "A plugin saved to '$folder'"
+        done < <(sequence_generator "" $length ${#mix_configs[@]})
     done
 
     echo "Creating fomod config.."
     local fomod=$(create_fomod_config "$root" "$temp" "${plugins[@]}")
     echo "Fomod config saved to $fomod"
     for plugin in "${plugins[@]}"; do
-        rm -f "$plugin"
+        rm -f "$plugin/plugin.xml"
     done
 
-    local all_files=("${extra_configs[@]}" "${configs[@]}")
+    local all_files=("${custom_configs[@]}" "${mix_configs[@]}")
 
     echo "Creating bbcode.."
     create_bbcode "${all_files[@]}" >"$root/target/description.bbcode"
@@ -131,25 +133,26 @@ function create_config() {
     local description=$(echo "$sections" | concatenate $'\n')
 
     local folder="$root/$name"
-    local ini="$folder/$mod_ini"
-    local xml="$folder/plugin.xml"
+    local ini_file="$folder/$mod_ini"
+    local plugin_file="$folder/plugin.xml"
     local bbcode="$folder/plugin.bbcode"
     if ! mkdir "$folder"; then
         echo >&2 "Unable to create '$folder'"
     fi
-    echo "$base_config" >"$ini"
-    echo >>"$ini"
+    echo "$base_config" >"$ini_file"
+    echo >>"$ini_file"
     for file in $@; do
-        cat "$file" >>"$ini"
-        echo >>"$ini"
+        cat "$file" >>"$ini_file"
+        echo >>"$ini_file"
     done
     local plugin=$MODULE_PLUGIN
     plugin="${plugin//%NAME%/$name}"
     plugin="${plugin//%TITLE%/$title}"
     plugin="${plugin//%TYPE%/$fomod_optional}"
+    plugin="${plugin//%DESCRIPTION_HEADER%/$title}"
     plugin="${plugin//%DESCRIPTION%/$description}"
-    echo "$plugin" >"$xml"
-    echo $xml
+    echo "$plugin" >"$plugin_file"
+    echo $folder
 }
 
 function create_bbcode() {
@@ -179,25 +182,25 @@ function create_fomod_config() {
     shift
     local target=$1
     shift
-    local folder="$target/fomod"
-    if ! mkdir -p "$folder"; then
-        echo >&2 "unable to create fomod folder 'folder'"
+    local fomod_folder="$target/fomod"
+    if ! mkdir -p "$fomod_folder"; then
+        echo >&2 "unable to create fomod folder '$fomod_folder'"
         exit 1
     fi
 
-    local info_file="$folder/info.xml"
-    local module_file="$folder/ModuleConfig.xml"
+    local info_file="$fomod_folder/info.xml"
+    local plugin_file="$fomod_folder/plugin.xml"
 
     local plugins=$(
-        for file in $@; do
-            cat "$file"
+        for folder in $@; do
+            cat "$folder/plugin.xml"
             echo
         done
     )
 
     echo "${INFO//%VERSION%/$version}" >"$info_file"
-    echo "${MODULE_CONFIG//%PLUGINS%/$plugins}" >"$module_file"
-    echo "$folder"
+    echo "${MODULE_CONFIG//%PLUGINS%/$plugins}" >"$plugin_file"
+    echo "$fomod_folder"
 }
 
 function pack_mod() {

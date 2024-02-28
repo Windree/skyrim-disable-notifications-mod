@@ -24,7 +24,7 @@ MODULE_PLUGIN=$(
 	cat <<'PLUGIN'
 <plugin name="%TITLE%">
     <description><![CDATA[
-Hide following notifications:
+%DESCRIPTION_HEADER%:
 %DESCRIPTION%
 ]]></description>
     <files>
