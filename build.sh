@@ -189,7 +189,7 @@ function create_fomod_config() {
     fi
 
     local info_file="$fomod_folder/info.xml"
-    local plugin_file="$fomod_folder/plugin.xml"
+    local plugin_file="$fomod_folder/ModuleConfig.xml"
 
     local plugins=$(
         for folder in $@; do
